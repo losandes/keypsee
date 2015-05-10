@@ -1,0 +1,13 @@
+.demo {
+    width: 960px;
+    margin: auto;
+}
+
+div {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+div[contenteditable] {
+    border: 1px solid #eee;
+}

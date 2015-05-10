@@ -1,0 +1,19 @@
+{
+  "name": "keypsee-build",
+  "version": "1.0.0",
+  "description": "We use node.js and grunt to build keypsee",
+  "main": "gruntfile.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Andy Wright <andes.collab@gmail.com> (https://github.com/losandes)",
+  "license": "MIT",
+  "devDependencies": {
+    "grunt": "0.4.x",
+    "grunt-concurrent": "1.0.x",
+    "grunt-contrib-copy": "0.4.x",
+    "grunt-contrib-uglify": "0.7.x",
+    "grunt-contrib-watch": "0.6.x",
+    "grunt-contrib-jasmine": "0.8.x"
+  }
+}

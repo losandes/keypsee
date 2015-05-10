@@ -1,0 +1,14 @@
+{
+  "name": "keypseelib",
+  "version": "1.0.0",
+  "description": "keypsee dependencies",
+  "main": "echo \"Error: no main specified\" && exit 1",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Andy Wright <andes.collab@gmail.com> (https://github.com/losandes)",
+  "license": "MIT",
+  "dependencies": {
+    "hilary": "2.2.x"
+  }
+}
