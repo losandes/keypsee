@@ -28,10 +28,12 @@
         
     }());
     
-    exports.Keypsee = function () {
+    exports.Keypsee = function (options) {
+        options = options || {};
+        
         var maps = scope.resolve('maps'),
             helpers = scope.resolve('helpers').init(maps);
-        return scope.resolve('observer').start(helpers);
+        return scope.resolve('observer').init(helpers, options.DOMElement || document);
     };
     
 }(window, Hilary.scope('keypsee')));

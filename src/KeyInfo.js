@@ -1,6 +1,6 @@
 /*globals Hilary*/
 /*
-// 
+//
 */
 Hilary.scope('keypsee').register({
     name: 'KeyInfo',
@@ -17,12 +17,6 @@ Hilary.scope('keypsee').register({
             self.key = keyinfo.key;
             self.modifiers = keyinfo.modifiers;
             self.eventType = keyinfo.eventType;
-            
-            if (typeof keyinfo.matchAnyModifier !== 'undefined') {
-                self.matchAnyModifier = keyinfo.matchAnyModifier;
-            } else {
-                self.matchAnyModifier = false;
-            }
         };
         
         return KeyInfo;

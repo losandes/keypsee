@@ -55,15 +55,6 @@ Hilary.scope('keypsee').register({
             self.shiftMap = shiftMap;
 
             /*
-            // variable to store the flipped version of _MAP from above
-            // needed to check if we should use keypress or not when no action
-            // is specified
-            //
-            // @type {Object|undefined}
-            */
-            self.reverseMap = reverseMap;
-
-            /*
             // this is a list of special strings you can use to map
             // to modifier keys when you specify your keyboard shortcuts
             //
@@ -80,10 +71,13 @@ Hilary.scope('keypsee').register({
             self.getReverseMap = getReverseMap;
 
             /*
-            //
+            // where the registered callbacks are stored
             */
             self.callbackMap = callbackMap;
             
+            /*
+            // disposes the callbackMap
+            */
             self.dispose = function () {
                 delete self.callbackMap;
                 callbackMap = {};
@@ -162,6 +156,7 @@ Hilary.scope('keypsee').register({
             'command': 'meta',
             'return': 'enter',
             'escape': 'esc',
+            'plus': '+',
             'mod': /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? 'meta' : 'ctrl'
         };
 

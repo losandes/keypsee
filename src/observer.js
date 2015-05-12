@@ -11,40 +11,32 @@ Hilary.scope('keypsee').register({
         var observe,
             observeOne,
             observePaste,
-            observeDomEvent,
-            observeKeyEvents,
-            stopObserving,
-            isStarted = false,
+            enumerateKeys,
+            isInitialized = false,
             keyEventHandler,
             helpers,
-            Observer;
+            Observer,
+            ObservedDOMElement;
         
         // this is what is returned by this function
         Observer = function () {
-            var self = this;
+            var self = this,
+                observeKeyEvents,
+                observeDomEvent;
             
             
-            self.start = function (helprs) {
-                if (isStarted) {
+            self.init = function (helprs, DOMElement) {
+                if (isInitialized) {
                     return self;
                 }
 
                 helpers = helprs;
-                observeKeyEvents(document);
-                isStarted = true;
-
+                observeKeyEvents(DOMElement);
+                isInitialized = true;
+                ObservedDOMElement = DOMElement;
+                
                 return self;
             };
-
-            /*
-            // observe DOM events of a give type (i.e. keydown) for a given DOM object (i.e. document, body, $('#mydiv')[0])
-            */
-            self.observeDomEvent = observeDomEvent;
-
-            /*
-            // observe all key events (i.e. keydown, keyup and keypress) for a given DOM object (i.e. document, body, $('#mydiv')[0])
-            */
-            self.observeKeyEvents = observeKeyEvents;
 
             /*
             // makes and event observable
@@ -57,77 +49,157 @@ Hilary.scope('keypsee').register({
             //
             // @param {string|Array} keys
             // @param {string=} eventType - 'keypress', 'keydown', or 'keyup'
-            // @param {bool|Function} matchAnyModifier: when true, the modifier keys (i.e. control, command) will
-            //      match using OR logic, otherwise the keys will match using AND logic. When this is a function,
-            //      it is treated as the callback, and the fourth parameter is ignored
             // @param {Function} callback the function to be executed when the key event is observed
             // @returns this observer
             */
-            self.observe = function (keys, eventType, matchAnyModifier, callback) {
-                keys = utils.isArray(keys) ? keys : [keys];
-
-                if (utils.isFunction(matchAnyModifier)) {
-                    // observe(keys, eventType, false, matchAnyModifier /*as callback*/);
-                    observe(keys, eventType, false, matchAnyModifier);
+            self.observe = function (keys, eventType, callback) {
+                var opts;
+                
+                if (utils.isObject(keys)) {
+                    opts = keys;
                 } else {
-                    observe(keys, eventType, matchAnyModifier, callback);
+                    opts = {
+                        keys: utils.isArray(keys) ? keys : [keys],
+                        eventType: eventType || 'keypress',
+                        callback: callback
+                    };
                 }
+                
+                observe(opts.keys, opts.eventType, opts.callback);
 
                 return self;
             };
+            
+            /*
+            // makes and event observable one-time only. after the event fires once,
+            // keypsee will stop observing this event.
+            //
+            // can be a single key, a combination of keys separated with +,
+            // an array of keys, or a sequence of keys separated by spaces
+            //
+            // be sure to list the modifier keys first to make sure that the
+            // correct key ends up getting bound (the last key in the pattern)
+            //
+            // @param {string|Array} keys
+            // @param {string=} eventType - 'keypress', 'keydown', or 'keyup'
+            // @param {Function} callback the function to be executed when the key event is observed
+            // @returns this observer
+            */
+            self.observeOnce = function (keys, eventType, callback) {
+                var wrappedCallback = function (event, keyInfo, other) {
+                    // the order matters!
+                    callback(event, keyInfo, other);
+                    self.stopObserving(keys, eventType);
+                };
+                
+                return self.observe(keys, eventType, wrappedCallback);
+            };
 
             /*
-            // unbinds an event to mousetrap
-            //
-            // the unbinding sets the callback function of the specified key combo
-            // to an empty function and deletes the corresponding key in the
-            // _directMap dict.
-            //
-            // TODO: actually remove this from the _callbacks dictionary instead
-            // of binding an empty function
-            //
-            // the keycombo+eventType has to be exactly the same as
-            // it was defined in the bind method
+            // stops observing key combination(s). The keycombo+eventType has to be
+            // exactly the same as it was defined in the bind method.
             //
             // @param {string|Array} keys
             // @param {string} eventType
             // @returns void
             */
-            self.stopObserving = stopObserving;
+            self.stopObserving = function (keys, eventType) {
+                var outcome = {};
+                
+                enumerateKeys(keys, function (key) {
+                    var keyInfo = helpers.getKeyInfo(key, eventType);
+                    
+                    outcome[key] = {
+                        removed: helpers.removeCallback(keyInfo)
+                    };
+                });
+                
+                return outcome;
+            };
+            
+            self.dispose = function () {
+                helpers.dispose();
+            };
 
+            /*
+            // trigger a keyboard event programmatically
+            //
+            // @param {Object} mockEvent
+            */
             self.trigger = function (mockEvent) {
-                keyEventHandler(mockEvent);
+                if (typeof mockEvent === 'string') {
+                    
+                    
+                    var eventData = {
+                        type: 'keydown',
+                        bubbles : true,
+                        cancelable : true,
+                        char : "B",
+                        key : "b",
+                        ctrlKey: true,
+                        keyCode : 66 // i.e. 66 /*b*/
+                    };
+                    
+                    keyEventHandler(eventData);
+                } else if (utils.isObject(mockEvent)) {
+                    keyEventHandler(mockEvent);
+                } else {
+                    throw new Error('Unable to trigger the event');
+                }
             };
             
             self.getMaps = function () {
                 return helpers.maps;
             };
             
-            self.dispose = function () {
-                helpers.dispose();
+            /*
+            // observe DOM events of a give type (i.e. keydown) for a given DOM object (i.e. document, body, $('#mydiv')[0])
+            */
+            observeDomEvent = function (DOMElement, eventType) {
+                utils.observeDomEvent(DOMElement, eventType, keyEventHandler);
+
+                return self;
+            };
+
+            /*
+            // observe all key events (i.e. keydown, keyup and keypress) for a given DOM object (i.e. document, body, $('#mydiv')[0])
+            */
+            observeKeyEvents = function (DOMElement) {
+                observeDomEvent(DOMElement, 'keypress');
+                observeDomEvent(DOMElement, 'keydown');
+                observeDomEvent(DOMElement, 'keyup');
+
+                return self;
             };
         };
-
-        observe = function (keys, eventType, matchAnyModifier, callback) {
+        
+        enumerateKeys = function (keys, handler) {
+            if (!utils.isFunction(handler)) {
+                throw new Error('The handler must be a function');
+            }
+            
             var currentKey,
                 i;
             
             for (i = 0; i < keys.length; i += 1) {
-                currentKey = keys[i];
-
-                if (currentKey === 'paste') {
-                    observePaste(callback);
-                } else {
-                    observeOne(currentKey, eventType, matchAnyModifier, callback);
-                }
+                handler(keys[i]);
             }
         };
 
-        observeOne = function (key, eventType, matchAnyModifier, callback) {
+        observe = function (keys, eventType, callback) {
+            enumerateKeys(keys, function (key) {
+                if (key === 'paste') {
+                    observePaste(callback);
+                } else {
+                    observeOne(key, eventType, callback);
+                }
+            });
+        };
+
+        observeOne = function (key, eventType, callback) {
             var keyInfo = helpers.getKeyInfo(key, eventType),
                 callbackObj;
 
-            keyInfo.matchAnyModifier = matchAnyModifier;
             callbackObj = new Callback({ key: key, keyInfo: keyInfo, callback: callback, eventType: eventType });
 
             helpers.registerCallback(keyInfo, callbackObj);
@@ -135,13 +207,14 @@ Hilary.scope('keypsee').register({
 
         observePaste = function (callback) {
             var keyInfo = helpers.getKeyInfo('paste', 'void'),
+                DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document,
                 callbackObj;
 
             callbackObj = new Callback({ key: 'paste', keyInfo: keyInfo, callback: callback, eventType: 'void' });
             helpers.registerCallback(keyInfo, callbackObj);
-
-            if (document.onpaste !== undefined) {
-                document.onpaste = function (event) {
+            
+            if (DOMEle.onpaste !== undefined) {
+                DOMEle.onpaste = function (event) {
                     var i,
                         items,
                         output = {
@@ -164,7 +237,7 @@ Hilary.scope('keypsee').register({
 
                             if (item.kind === 'file' && item.getAsFile) {
                                 pasteObj.file = item.getAsFile();
-                                pasteObj.readToDataUrl();
+                                pasteObj.toDataUrl();
                             }
 
                             output.items.push(pasteObj);
@@ -174,10 +247,6 @@ Hilary.scope('keypsee').register({
                     helpers.executePasteCallback(keyInfo, event, output);
                 };
             }
-        };
-
-        stopObserving = function (keys, eventType) {
-            throw new Error('stopObserving is not implemented');
         };
 
         /**
@@ -195,20 +264,6 @@ Hilary.scope('keypsee').register({
             }
 
             helpers.executeCallback(info, event);
-        };
-
-        observeDomEvent = function (domObject, eventType) {
-            utils.observeDomEvent(domObject, eventType, keyEventHandler);
-
-            return this;
-        };
-
-        observeKeyEvents = function (domObject) {
-            observeDomEvent(domObject, 'keypress');
-            observeDomEvent(domObject, 'keydown');
-            observeDomEvent(domObject, 'keyup');
-
-            return this;
         };
 
         return new Observer();

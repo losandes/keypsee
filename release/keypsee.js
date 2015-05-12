@@ -1,4 +1,4 @@
-/*! keypsee-build 2015-05-09 */
+/*! keypsee-build 2015-05-12 */
 Hilary.scope("keypsee").register({
     name: "Callback",
     dependencies: [ "KeyInfo", "console" ],
@@ -26,10 +26,11 @@ Hilary.scope("keypsee").register({
     factory: function(utils, KeyInfo) {
         "use strict";
         var init = function(maps) {
-            var makeCallbackKey, registerCallback, executePasteCallback, executeOnePasteCallback, executeCallback, executeOneCallback, modifiersAreSame, getKeyInfo, getKeyInfoFromEvent, keysFromString, isModifier, getEventModifiers, pickBestEventType, characterFromEvent, Helpers;
+            var makeCallbackKey, registerCallback, removeCallback, executePasteCallback, executeOnePasteCallback, executeCallback, executeOneCallback, modifiersAreSame, getKeyInfo, getKeyInfoFromEvent, keysFromString, isModifier, getEventModifiers, pickBestEventType, characterFromEvent, Helpers;
             Helpers = function() {
                 var self = this;
                 self.registerCallback = registerCallback;
+                self.removeCallback = removeCallback;
                 self.executePasteCallback = executePasteCallback;
                 self.executeCallback = executeCallback;
                 self.getKeyInfo = getKeyInfo;
@@ -52,6 +53,14 @@ Hilary.scope("keypsee").register({
                 } else {
                     mappedCallback.push(callback);
                 }
+            };
+            removeCallback = function(keyInfo) {
+                var callbackKey = makeCallbackKey(keyInfo);
+                if (maps.callbackMap[callbackKey]) {
+                    delete maps.callbackMap[callbackKey];
+                    return true;
+                }
+                return false;
             };
             executePasteCallback = function(keyInfo, event, items) {
                 var i, callbacks;
@@ -86,26 +95,15 @@ Hilary.scope("keypsee").register({
                 }
             };
             modifiersAreSame = function(eventKeyInfo, callbackKeyInfo) {
-                var i, k, areSame = false, matchAnyModifier = callbackKeyInfo.matchAnyModifier;
-                if (matchAnyModifier) {
-                    for (i in eventKeyInfo.modifiers) {
-                        if (eventKeyInfo.modifiers.hasOwnProperty(i) && callbackKeyInfo.modifiers.indexOf(eventKeyInfo.modifiers[i]) > -1) {
-                            areSame = true;
-                        }
-                    }
-                } else {
-                    areSame = true;
-                    if (eventKeyInfo.modifiers.length !== callbackKeyInfo.modifiers.length) {
-                        return false;
-                    }
-                    for (i in eventKeyInfo.modifiers) {
-                        if (eventKeyInfo.modifiers.hasOwnProperty(i)) {
-                            if (callbackKeyInfo.modifiers.indexOf(eventKeyInfo.modifiers[i]) > -1) {
-                                areSame = areSame && true;
-                            } else {
-                                areSame = false;
-                            }
-                        }
+                var areSame = true, i;
+                if (eventKeyInfo.modifiers.length !== callbackKeyInfo.modifiers.length) {
+                    return false;
+                }
+                for (i = 0; i < eventKeyInfo.modifiers.length; i += 1) {
+                    if (callbackKeyInfo.modifiers.indexOf(eventKeyInfo.modifiers[i]) > -1) {
+                        areSame = areSame && true;
+                    } else {
+                        areSame = false;
                     }
                 }
                 return areSame;
@@ -151,7 +149,13 @@ Hilary.scope("keypsee").register({
                 if (combination === "+") {
                     return [ "+" ];
                 }
-                return combination.split("+");
+                var keys = combination.split("+"), i;
+                for (i = 0; i < keys.length; i += 1) {
+                    if (keys[i] === "plus") {
+                        keys[i] = "+";
+                    }
+                }
+                return keys;
             };
             isModifier = function(key) {
                 return key === "shift" || key === "ctrl" || key === "alt" || key === "meta";
@@ -214,11 +218,6 @@ Hilary.scope("keypsee").register({
             self.key = keyinfo.key;
             self.modifiers = keyinfo.modifiers;
             self.eventType = keyinfo.eventType;
-            if (typeof keyinfo.matchAnyModifier !== "undefined") {
-                self.matchAnyModifier = keyinfo.matchAnyModifier;
-            } else {
-                self.matchAnyModifier = false;
-            }
         };
         return KeyInfo;
     }
@@ -234,7 +233,6 @@ Hilary.scope("keypsee").register({
             self.map = map;
             self.keycodeMap = keycodeMap;
             self.shiftMap = shiftMap;
-            self.reverseMap = reverseMap;
             self.aliases = aliases;
             self.getReverseMap = getReverseMap;
             self.callbackMap = callbackMap;
@@ -312,6 +310,7 @@ Hilary.scope("keypsee").register({
             command: "meta",
             "return": "enter",
             escape: "esc",
+            plus: "+",
             mod: /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "meta" : "ctrl"
         };
         for (i = 1; i < 20; i += 1) {
@@ -341,54 +340,105 @@ Hilary.scope("keypsee").register({
     dependencies: [ "utils", "Callback", "PasteObject", "JSON" ],
     factory: function(utils, Callback, PasteObject, JSON) {
         "use strict";
-        var observe, observeOne, observePaste, observeDomEvent, observeKeyEvents, stopObserving, isStarted = false, keyEventHandler, helpers, Observer;
+        var observe, observeOne, observePaste, enumerateKeys, isInitialized = false, keyEventHandler, helpers, Observer, ObservedDOMElement;
         Observer = function() {
-            var self = this;
-            self.start = function(helprs) {
-                if (isStarted) {
+            var self = this, observeKeyEvents, observeDomEvent;
+            self.init = function(helprs, DOMElement) {
+                if (isInitialized) {
                     return self;
                 }
                 helpers = helprs;
-                observeKeyEvents(document);
-                isStarted = true;
+                observeKeyEvents(DOMElement);
+                isInitialized = true;
+                ObservedDOMElement = DOMElement;
                 return self;
             };
-            self.observeDomEvent = observeDomEvent;
-            self.observeKeyEvents = observeKeyEvents;
-            self.observe = function(keys, eventType, matchAnyModifier, callback) {
-                keys = utils.isArray(keys) ? keys : [ keys ];
-                if (utils.isFunction(matchAnyModifier)) {
-                    observe(keys, eventType, false, matchAnyModifier);
+            self.observe = function(keys, eventType, callback) {
+                var opts;
+                if (utils.isObject(keys)) {
+                    opts = keys;
                 } else {
-                    observe(keys, eventType, matchAnyModifier, callback);
+                    opts = {
+                        keys: utils.isArray(keys) ? keys : [ keys ],
+                        eventType: eventType || "keypress",
+                        callback: callback
+                    };
                 }
+                observe(opts.keys, opts.eventType, opts.callback);
                 return self;
             };
-            self.stopObserving = stopObserving;
-            self.trigger = function(mockEvent) {
-                keyEventHandler(mockEvent);
+            self.observeOnce = function(keys, eventType, callback) {
+                var wrappedCallback = function(event, keyInfo, other) {
+                    callback(event, keyInfo, other);
+                    self.stopObserving(keys, eventType);
+                };
+                return self.observe(keys, eventType, wrappedCallback);
             };
-            self.getMaps = function() {
-                return helpers.maps;
+            self.stopObserving = function(keys, eventType) {
+                var outcome = {};
+                enumerateKeys(keys, function(key) {
+                    var keyInfo = helpers.getKeyInfo(key, eventType);
+                    outcome[key] = {
+                        removed: helpers.removeCallback(keyInfo)
+                    };
+                });
+                return outcome;
             };
             self.dispose = function() {
                 helpers.dispose();
             };
+            self.trigger = function(mockEvent) {
+                if (typeof mockEvent === "string") {
+                    var eventData = {
+                        type: "keydown",
+                        bubbles: true,
+                        cancelable: true,
+                        "char": "B",
+                        key: "b",
+                        ctrlKey: true,
+                        keyCode: 66
+                    };
+                    keyEventHandler(eventData);
+                } else if (utils.isObject(mockEvent)) {
+                    keyEventHandler(mockEvent);
+                } else {
+                    throw new Error("Unable to trigger the event");
+                }
+            };
+            self.getMaps = function() {
+                return helpers.maps;
+            };
+            observeDomEvent = function(DOMElement, eventType) {
+                utils.observeDomEvent(DOMElement, eventType, keyEventHandler);
+                return self;
+            };
+            observeKeyEvents = function(DOMElement) {
+                observeDomEvent(DOMElement, "keypress");
+                observeDomEvent(DOMElement, "keydown");
+                observeDomEvent(DOMElement, "keyup");
+                return self;
+            };
         };
-        observe = function(keys, eventType, matchAnyModifier, callback) {
+        enumerateKeys = function(keys, handler) {
+            if (!utils.isFunction(handler)) {
+                throw new Error("The handler must be a function");
+            }
             var currentKey, i;
             for (i = 0; i < keys.length; i += 1) {
-                currentKey = keys[i];
-                if (currentKey === "paste") {
-                    observePaste(callback);
-                } else {
-                    observeOne(currentKey, eventType, matchAnyModifier, callback);
-                }
+                handler(keys[i]);
             }
         };
-        observeOne = function(key, eventType, matchAnyModifier, callback) {
+        observe = function(keys, eventType, callback) {
+            enumerateKeys(keys, function(key) {
+                if (key === "paste") {
+                    observePaste(callback);
+                } else {
+                    observeOne(key, eventType, callback);
+                }
+            });
+        };
+        observeOne = function(key, eventType, callback) {
             var keyInfo = helpers.getKeyInfo(key, eventType), callbackObj;
-            keyInfo.matchAnyModifier = matchAnyModifier;
             callbackObj = new Callback({
                 key: key,
                 keyInfo: keyInfo,
@@ -398,7 +448,7 @@ Hilary.scope("keypsee").register({
             helpers.registerCallback(keyInfo, callbackObj);
         };
         observePaste = function(callback) {
-            var keyInfo = helpers.getKeyInfo("paste", "void"), callbackObj;
+            var keyInfo = helpers.getKeyInfo("paste", "void"), DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document, callbackObj;
             callbackObj = new Callback({
                 key: "paste",
                 keyInfo: keyInfo,
@@ -406,8 +456,8 @@ Hilary.scope("keypsee").register({
                 eventType: "void"
             });
             helpers.registerCallback(keyInfo, callbackObj);
-            if (document.onpaste !== undefined) {
-                document.onpaste = function(event) {
+            if (DOMEle.onpaste !== undefined) {
+                DOMEle.onpaste = function(event) {
                     var i, items, output = {
                         items: [],
                         json: ""
@@ -423,7 +473,7 @@ Hilary.scope("keypsee").register({
                             });
                             if (item.kind === "file" && item.getAsFile) {
                                 pasteObj.file = item.getAsFile();
-                                pasteObj.readToDataUrl();
+                                pasteObj.toDataUrl();
                             }
                             output.items.push(pasteObj);
                         }
@@ -432,25 +482,12 @@ Hilary.scope("keypsee").register({
                 };
             }
         };
-        stopObserving = function(keys, eventType) {
-            throw new Error("stopObserving is not implemented");
-        };
         keyEventHandler = function(event) {
             var info = helpers.getKeyInfoFromEvent(event);
             if (!info.key) {
                 return;
             }
             helpers.executeCallback(info, event);
-        };
-        observeDomEvent = function(domObject, eventType) {
-            utils.observeDomEvent(domObject, eventType, keyEventHandler);
-            return this;
-        };
-        observeKeyEvents = function(domObject) {
-            observeDomEvent(domObject, "keypress");
-            observeDomEvent(domObject, "keydown");
-            observeDomEvent(domObject, "keyup");
-            return this;
         };
         return new Observer();
     }
@@ -488,7 +525,7 @@ Hilary.scope("keypsee").register({
     name: "utils",
     factory: function() {
         "use strict";
-        var preventDefault, stopPropagation, observeDomEvent, getType, isArray, isFunction, objProto = Object.prototype, objProtoToStringFunc = objProto.toString, objProtoHasOwnFunc = objProto.hasOwnProperty, class2Types = {}, class2ObjTypes = [ "Boolean", "Number", "String", "Function", "Array", "Date", "RegExp", "Object", "Error" ], Utils;
+        var preventDefault, stopPropagation, observeDomEvent, getType, isArray, isFunction, isBoolean, isObject, objProto = Object.prototype, objProtoToStringFunc = objProto.toString, objProtoHasOwnFunc = objProto.hasOwnProperty, class2Types = {}, class2ObjTypes = [ "Boolean", "Number", "String", "Function", "Array", "Date", "RegExp", "Object", "Error" ], Utils;
         Utils = function() {
             var self = this, name, i;
             for (i = 0; i < class2ObjTypes.length; i += 1) {
@@ -500,6 +537,8 @@ Hilary.scope("keypsee").register({
             self.observeDomEvent = observeDomEvent;
             self.isArray = isArray;
             self.isFunction = isFunction;
+            self.isBoolean = isBoolean;
+            self.isObject = isObject;
         };
         preventDefault = function(event) {
             if (event.preventDefault) {
@@ -515,12 +554,15 @@ Hilary.scope("keypsee").register({
             }
             event.cancelBubble = true;
         };
-        observeDomEvent = function(obj, type, callback) {
-            if (obj.addEventListener) {
-                obj.addEventListener(type, callback, false);
+        observeDomEvent = function(DOMElement, type, callback) {
+            if (DOMElement.addEventListener) {
+                DOMElement.addEventListener(type, callback, false);
                 return;
+            } else if (DOMElement.attachEvent) {
+                DOMElement.attachEvent("on" + type, callback);
+            } else {
+                throw new Error("<KeypseeIncompatibilityError>: This browser does not support addEventListener or attachEvent.");
             }
-            obj.attachEvent("on" + type, callback);
         };
         getType = function(obj) {
             if (typeof obj === "undefined") {
@@ -536,6 +578,12 @@ Hilary.scope("keypsee").register({
         };
         isFunction = function(obj) {
             return getType(obj) === "function";
+        };
+        isBoolean = function(obj) {
+            return getType(obj) === "boolean";
+        };
+        isObject = function(obj) {
+            return getType(obj) === "object";
         };
         return new Utils();
     }
@@ -563,8 +611,9 @@ Hilary.scope("keypsee").register({
             }
         });
     })();
-    exports.Keypsee = function() {
+    exports.Keypsee = function(options) {
+        options = options || {};
         var maps = scope.resolve("maps"), helpers = scope.resolve("helpers").init(maps);
-        return scope.resolve("observer").start(helpers);
+        return scope.resolve("observer").init(helpers, options.DOMElement || document);
     };
 })(window, Hilary.scope("keypsee"));

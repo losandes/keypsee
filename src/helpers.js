@@ -12,6 +12,7 @@ Hilary.scope('keypsee').register({
 
             var makeCallbackKey,
                 registerCallback,
+                removeCallback,
                 executePasteCallback,
                 executeOnePasteCallback,
                 executeCallback,
@@ -31,9 +32,14 @@ Hilary.scope('keypsee').register({
                 var self = this;
 
                 /*
-                //
+                // registers a callback for given key events
                 */
                 self.registerCallback = registerCallback;
+                
+                /*
+                // removes a callback for given key events
+                */
+                self.removeCallback = removeCallback;
 
                 /*
                 //
@@ -93,6 +99,17 @@ Hilary.scope('keypsee').register({
                     mappedCallback.push(callback);
                 }
             };
+            
+            removeCallback = function (keyInfo) {
+                var callbackKey = makeCallbackKey(keyInfo);
+                
+                if (maps.callbackMap[callbackKey]) {
+                    delete maps.callbackMap[callbackKey];
+                    return true;
+                }
+                
+                return false;
+            };
 
             executePasteCallback = function (keyInfo, event, items) {
                 var i,
@@ -143,29 +160,18 @@ Hilary.scope('keypsee').register({
             };
 
             modifiersAreSame = function (eventKeyInfo, callbackKeyInfo) {
-                var i, k, areSame = false, matchAnyModifier = callbackKeyInfo.matchAnyModifier;
+                var areSame = true,
+                    i;
 
-                if (matchAnyModifier) {
-                    for (i in eventKeyInfo.modifiers) {
-                        if (eventKeyInfo.modifiers.hasOwnProperty(i) && callbackKeyInfo.modifiers.indexOf(eventKeyInfo.modifiers[i]) > -1) {
-                            areSame = true;
-                        }
-                    }
-                } else {
-                    areSame = true;
+                if (eventKeyInfo.modifiers.length !== callbackKeyInfo.modifiers.length) {
+                    return false;
+                }
 
-                    if (eventKeyInfo.modifiers.length !== callbackKeyInfo.modifiers.length) {
-                        return false;
-                    }
-
-                    for (i in eventKeyInfo.modifiers) {
-                        if (eventKeyInfo.modifiers.hasOwnProperty(i)) {
-                            if (callbackKeyInfo.modifiers.indexOf(eventKeyInfo.modifiers[i]) > -1) {
-                                areSame = areSame && true;
-                            } else {
-                                areSame = false;
-                            }
-                        }
+                for (i = 0; i < eventKeyInfo.modifiers.length; i += 1) {
+                    if (callbackKeyInfo.modifiers.indexOf(eventKeyInfo.modifiers[i]) > -1) {
+                        areSame = areSame && true;
+                    } else {
+                        areSame = false;
                     }
                 }
 
@@ -247,7 +253,17 @@ Hilary.scope('keypsee').register({
                     return ['+'];
                 }
 
-                return combination.split('+');
+                var keys = combination.split('+'),
+                    i;
+                
+                // convert "plus" to "+"
+                for (i = 0; i < keys.length; i += 1) {
+                    if (keys[i] === 'plus') {
+                        keys[i] = '+';
+                    }
+                }
+                
+                return keys;
             };
 
             /**

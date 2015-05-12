@@ -13,6 +13,8 @@ Hilary.scope('keypsee').register({
             getType,
             isArray,
             isFunction,
+            isBoolean,
+            isObject,
             objProto = Object.prototype,
             objProtoToStringFunc = objProto.toString,
             objProtoHasOwnFunc = objProto.hasOwnProperty,
@@ -59,6 +61,8 @@ Hilary.scope('keypsee').register({
 
             self.isArray = isArray;
             self.isFunction = isFunction;
+            self.isBoolean = isBoolean;
+            self.isObject = isObject;
         };
 
         preventDefault = function (event) {
@@ -79,13 +83,15 @@ Hilary.scope('keypsee').register({
             event.cancelBubble = true;
         };
 
-        observeDomEvent = function (obj, type, callback) {
-            if (obj.addEventListener) {
-                obj.addEventListener(type, callback, false);
+        observeDomEvent = function (DOMElement, type, callback) {
+            if (DOMElement.addEventListener) {
+                DOMElement.addEventListener(type, callback, false);
                 return;
+            } else if (DOMElement.attachEvent) {
+                DOMElement.attachEvent('on' + type, callback);
+            } else {
+                throw new Error('<KeypseeIncompatibilityError>: This browser does not support addEventListener or attachEvent.');
             }
-
-            obj.attachEvent('on' + type, callback);
         };
 
         getType = function (obj) {
@@ -107,6 +113,14 @@ Hilary.scope('keypsee').register({
 
         isFunction = function (obj) {
             return getType(obj) === 'function';
+        };
+        
+        isBoolean = function (obj) {
+            return getType(obj) === 'boolean';
+        };
+        
+        isObject = function (obj) {
+            return getType(obj) === 'object';
         };
 
         return new Utils();

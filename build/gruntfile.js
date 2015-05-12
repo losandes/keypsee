@@ -89,5 +89,6 @@ module.exports = function (grunt) {
     // Default task(s).
     grunt.registerTask('mon', ['watch']);
     grunt.registerTask('default', ["jasmine", "uglify:debug", "uglify:release", "copy:js"]);
+    grunt.registerTask('force', ["uglify:debug", "uglify:release", "copy:js"]);
 
 };

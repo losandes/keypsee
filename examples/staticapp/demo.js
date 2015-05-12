@@ -30,7 +30,9 @@
     
     
     observer.observe('paste', 'keypress', function (event, keyInfo, clipboard) {
-        var assert, then, item = clipboard.items[0];
+        var assert,
+            then,
+            item = clipboard.items[0];
         
         assert = function () {
             return item.type.indexOf('image') > -1 && item.dataUrl;
@@ -40,10 +42,38 @@
             var img = $('<img>')
                 .attr('src', item.dataUrl)
                 .attr('alt', 'user entered image');
+            
+            console.log('you pasted and image', {
+                event: event,
+                keyInfo: keyInfo,
+                clipboard: clipboard
+            });
+            
             return $(event.target).append(img);
         };
         
         when(assert, then);
+    });
+    
+    observer.observe(['command+b'], 'keypress', function (event, keyInfo) {
+        console.log('you pressed command+b', {
+            event: event,
+            keyInfo: keyInfo
+        });
+    });
+    
+    observer.observe(['ctrl+plus'], 'keydown', function (event, keyInfo) {
+        console.log('you pressed ctrl+plus', {
+            event: event,
+            keyInfo: keyInfo
+        });
+    });
+    
+    observer.observeOnce(['command+shift+o'], 'keypress', function (event, keyInfo) {
+        console.log('you pressed command+o', {
+            event: event,
+            keyInfo: keyInfo
+        });
     });
     
 }(jQuery, Keypsee));
