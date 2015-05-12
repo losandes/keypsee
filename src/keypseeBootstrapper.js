@@ -33,7 +33,11 @@
         
         var maps = scope.resolve('maps'),
             helpers = scope.resolve('helpers').init(maps);
-        return scope.resolve('observer').init(helpers, options.DOMElement || document);
+        return scope.resolve('observer').init({
+            helpers: helpers,
+            DOMElement: options.DOMElement || document,
+            pollingSettings: options.pollingSettings
+        });
     };
     
 }(window, Hilary.scope('keypsee')));

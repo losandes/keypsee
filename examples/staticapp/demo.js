@@ -74,10 +74,7 @@
                             .attr('alt', 'user entered image');
                         
                         appendTarget(event, keyInfo, clipboard, html);
-                    } else if (item.type.indexOf('text/html') > -1 && item.data) {
-                        html = $(item.data);
-                        appendTarget(event, keyInfo, clipboard, html);
-                    } else if (item.kind === 'string' && item.data) {
+                    } else if (item.data) {
                         html = item.data;
                         appendTarget(event, keyInfo, clipboard, html);
                     }

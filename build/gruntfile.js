@@ -9,6 +9,7 @@ module.exports = function (grunt) {
             '../src/maps.js',
             '../src/observer.js',
             '../src/PasteObject.js',
+            '../src/PasteObserver.js',
             '../src/utils.js',
             '../src/keypseeBootstrapper.js'
         ];

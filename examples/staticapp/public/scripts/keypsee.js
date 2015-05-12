@@ -338,20 +338,21 @@ Hilary.scope("keypsee").register({
 
 Hilary.scope("keypsee").register({
     name: "observer",
-    dependencies: [ "utils", "Callback", "PasteObject", "JSON" ],
-    factory: function(utils, Callback, PasteObject, JSON) {
+    dependencies: [ "PasteObserver", "utils", "Callback", "PasteObject", "JSON" ],
+    factory: function(PasteObserver, utils, Callback, PasteObject, JSON) {
         "use strict";
-        var observe, observeOne, observePaste, defaultSyncPasteCallback, enumerateKeys, isInitialized = false, keyEventHandler, when, helpers, Observer, ObservedDOMElement;
+        var observe, observeOne, enumerateKeys, isInitialized = false, keyEventHandler, helpers, pasteObserver, Observer;
         Observer = function() {
             var self = this, observeKeyEvents, observeDomEvent;
-            self.init = function(helprs, DOMElement) {
+            self.init = function(options) {
                 if (isInitialized) {
                     return self;
                 }
-                helpers = helprs;
-                observeKeyEvents(DOMElement);
+                helpers = options.helpers;
+                observeKeyEvents(options.DOMElement);
                 isInitialized = true;
-                ObservedDOMElement = DOMElement;
+                pasteObserver = new PasteObserver(options);
+                self.observePaste = pasteObserver.observePaste;
                 return self;
             };
             self.observe = function(keys, eventType, callback) {
@@ -375,13 +376,7 @@ Hilary.scope("keypsee").register({
                 };
                 return self.observe(keys, eventType, wrappedCallback);
             };
-            self.observePaste = function(options) {
-                if (!utils.isObject(options) || !utils.isFunction(options.asyncCallback)) {
-                    throw new Error("An object literal with at least a callback property is required to call observePaste");
-                }
-                options.syncCallback = options.syncCallback || defaultSyncPasteCallback;
-                observePaste(options.asyncCallback, options.syncCallback);
-            };
+            self.observePaste = undefined;
             self.stopObserving = function(keys, eventType) {
                 var outcome = {};
                 enumerateKeys(keys, function(key) {
@@ -391,10 +386,6 @@ Hilary.scope("keypsee").register({
                     };
                 });
                 return outcome;
-            };
-            self.eventHelpers = {
-                preventDefault: utils.preventDefault,
-                stopPropagation: utils.stopPropagation
             };
             self.dispose = function() {
                 helpers.dispose();
@@ -420,6 +411,10 @@ Hilary.scope("keypsee").register({
             self.getMaps = function() {
                 return helpers.maps;
             };
+            self.eventHelpers = {
+                preventDefault: utils.preventDefault,
+                stopPropagation: utils.stopPropagation
+            };
             observeDomEvent = function(DOMElement, eventType) {
                 utils.observeDomEvent(DOMElement, eventType, keyEventHandler);
                 return self;
@@ -430,10 +425,6 @@ Hilary.scope("keypsee").register({
                 observeDomEvent(DOMElement, "keyup");
                 return self;
             };
-        };
-        defaultSyncPasteCallback = function(event) {
-            utils.preventDefault(event);
-            utils.stopPropagation(event);
         };
         enumerateKeys = function(keys, handler) {
             if (!utils.isFunction(handler)) {
@@ -446,11 +437,7 @@ Hilary.scope("keypsee").register({
         };
         observe = function(keys, eventType, callback) {
             enumerateKeys(keys, function(key) {
-                if (key === "paste") {
-                    observePaste(callback, defaultSyncPasteCallback);
-                } else {
-                    observeOne(key, eventType, callback);
-                }
+                observeOne(key, eventType, callback);
             });
         };
         observeOne = function(key, eventType, callback) {
@@ -462,104 +449,6 @@ Hilary.scope("keypsee").register({
                 eventType: eventType
             });
             helpers.registerCallback(keyInfo, callbackObj);
-        };
-        observePaste = function(asyncCallback, syncCallback) {
-            var asyncKeyInfo = helpers.getKeyInfo("paste", "async"), asyncCallbackObj, syncKeyInfo = helpers.getKeyInfo("paste", "sync"), syncCallbackObj, DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document;
-            asyncCallbackObj = new Callback({
-                key: "paste",
-                keyInfo: asyncKeyInfo,
-                callback: asyncCallback,
-                eventType: "async"
-            });
-            syncCallbackObj = new Callback({
-                key: "paste",
-                keyInfo: syncKeyInfo,
-                callback: syncCallback,
-                eventType: "sync"
-            });
-            helpers.registerCallback(asyncKeyInfo, asyncCallbackObj);
-            helpers.registerCallback(syncKeyInfo, syncCallbackObj);
-            if (DOMEle.onpaste !== undefined) {
-                DOMEle.onpaste = function(event) {
-                    var i, items, item, pasteObj, wait = [], assert, then, output = {
-                        items: [],
-                        json: ""
-                    };
-                    items = (event.clipboardData || event.originalEvent.clipboardData).items;
-                    output.json = JSON.stringify(items);
-                    for (i in items) {
-                        if (items.hasOwnProperty(i) && items[i].kind && items[i].type) {
-                            item = items[i];
-                            pasteObj = new PasteObject({
-                                kind: item.kind,
-                                type: item.type
-                            });
-                            if (item.kind === "file" && item.getAsFile) {
-                                wait.push({
-                                    item: pasteObj,
-                                    property: "dataUrl"
-                                });
-                                pasteObj.file = item.getAsFile();
-                                pasteObj.toDataUrl();
-                            } else if (item.getData) {
-                                wait.push({
-                                    item: pasteObj,
-                                    property: "data"
-                                });
-                                pasteObj.data = item.getData(pasteObj.type);
-                            } else if (item.getAsString) {
-                                wait.push({
-                                    item: pasteObj,
-                                    property: "data"
-                                });
-                                item.getAsString(function(data) {
-                                    pasteObj.data = data;
-                                });
-                            }
-                            output.items.push(pasteObj);
-                        }
-                    }
-                    assert = function() {
-                        var outcome = true, i;
-                        for (i = 0; i < wait.length; i += 1) {
-                            if (typeof wait[i].item[wait[i].property] !== undefined) {
-                                outcome = outcome && true;
-                            } else {
-                                outcome = false;
-                            }
-                        }
-                        return outcome;
-                    };
-                    then = function() {
-                        helpers.executePasteCallback(asyncKeyInfo, event, output);
-                    };
-                    helpers.executePasteCallback(syncKeyInfo, event, output);
-                    if (wait.length > 0) {
-                        when(assert, then, 0, 9e3, 10);
-                    } else {
-                        then();
-                    }
-                };
-            }
-        };
-        when = function(assert, then, waitCount, waitThreshold, sleepTime) {
-            if (typeof assert !== "function" || typeof then !== "function") {
-                return false;
-            }
-            if (waitCount < waitThreshold) {
-                setTimeout(function() {
-                    if (assert()) {
-                        waitCount = 0;
-                        return then();
-                    } else {
-                        waitCount += 1;
-                        return when(assert, then, waitCount, waitThreshold, sleepTime);
-                    }
-                }, sleepTime);
-            } else {
-                waitCount = 0;
-                return false;
-            }
         };
         keyEventHandler = function(event) {
             var info = helpers.getKeyInfoFromEvent(event);
@@ -598,6 +487,151 @@ Hilary.scope("keypsee").register({
             };
         };
         return PasteObject;
+    }
+});
+
+Hilary.scope("keypsee").register({
+    name: "PasteObserver",
+    dependencies: [ "utils", "Callback", "PasteObject", "JSON" ],
+    factory: function(utils, Callback, PasteObject, JSON) {
+        "use strict";
+        var observePaste, helpers, observedDOMElement, defaultSyncPasteCallback, enumerateClipboardItems, handleClipboardItem, makeAssertion, makePasteHandler, when, pollingSettings = {
+            maxAttempts: 9e3,
+            attemptInterval: 10
+        }, PasteObserver;
+        PasteObserver = function(options) {
+            var self = this;
+            helpers = options.helpers;
+            observedDOMElement = options.DOMElement;
+            if (options.pollingSettings && typeof options.pollingSettings.maxAttempts === "number" && typeof options.pollingSettings.attemptInterval === "number") {
+                pollingSettings = options.pollingSettings;
+            }
+            self.observePaste = function(options) {
+                if (!utils.isObject(options) || !utils.isFunction(options.asyncCallback)) {
+                    throw new Error("An object literal with at least a callback property is required to call observePaste");
+                }
+                options.syncCallback = options.syncCallback || defaultSyncPasteCallback;
+                observePaste(options.asyncCallback, options.syncCallback);
+            };
+        };
+        defaultSyncPasteCallback = function(event) {
+            utils.preventDefault(event);
+            utils.stopPropagation(event);
+        };
+        observePaste = function(asyncCallback, syncCallback) {
+            var DOMEle = observedDOMElement.onpaste !== undefined ? observedDOMElement : document, asyncKeyInfo, asyncCallbackObj, syncKeyInfo, syncCallbackObj;
+            if (DOMEle.onpaste !== undefined) {
+                asyncKeyInfo = helpers.getKeyInfo("paste", "async");
+                syncKeyInfo = helpers.getKeyInfo("paste", "sync");
+                asyncCallbackObj = new Callback({
+                    key: "paste",
+                    keyInfo: asyncKeyInfo,
+                    callback: asyncCallback,
+                    eventType: "async"
+                });
+                syncCallbackObj = new Callback({
+                    key: "paste",
+                    keyInfo: syncKeyInfo,
+                    callback: syncCallback,
+                    eventType: "sync"
+                });
+                helpers.registerCallback(asyncKeyInfo, asyncCallbackObj);
+                helpers.registerCallback(syncKeyInfo, syncCallbackObj);
+                DOMEle.onpaste = makePasteHandler(asyncKeyInfo, syncKeyInfo);
+            } else {
+                throw new Error("<KeypseeIncompatibilityError>: this browser does not support the onpaste event");
+            }
+        };
+        enumerateClipboardItems = function(items, waitList, clipboard) {
+            var i;
+            for (i in items) {
+                if (items.hasOwnProperty(i) && items[i].kind && items[i].type) {
+                    handleClipboardItem(items[i], waitList, clipboard);
+                }
+            }
+        };
+        handleClipboardItem = function(item, waitList, clipboard) {
+            var pasteObj = new PasteObject({
+                kind: item.kind,
+                type: item.type
+            });
+            if (item.kind === "file" && item.getAsFile) {
+                waitList.push({
+                    item: pasteObj,
+                    property: "dataUrl"
+                });
+                pasteObj.file = item.getAsFile();
+                pasteObj.toDataUrl();
+            } else if (item.getData) {
+                waitList.push({
+                    item: pasteObj,
+                    property: "data"
+                });
+                pasteObj.data = item.getData(pasteObj.type);
+            } else if (item.getAsString) {
+                waitList.push({
+                    item: pasteObj,
+                    property: "data"
+                });
+                item.getAsString(function(data) {
+                    pasteObj.data = data;
+                });
+            }
+            clipboard.items.push(pasteObj);
+        };
+        makeAssertion = function(waitList) {
+            return function() {
+                var outcome = true, i;
+                for (i = 0; i < waitList.length; i += 1) {
+                    if (typeof waitList[i].item[waitList[i].property] !== undefined) {
+                        outcome = outcome && true;
+                    } else {
+                        outcome = false;
+                    }
+                }
+                return outcome;
+            };
+        };
+        makePasteHandler = function(asyncKeyInfo, syncKeyInfo) {
+            return function(event) {
+                var i, items, item, pasteObj, waitList = [], assert = makeAssertion(waitList), then, clipboard = {
+                    items: [],
+                    json: ""
+                };
+                items = (event.clipboardData || event.originalEvent.clipboardData).items;
+                clipboard.json = JSON.stringify(items);
+                then = function() {
+                    helpers.executePasteCallback(asyncKeyInfo, event, clipboard);
+                };
+                enumerateClipboardItems(items, waitList, clipboard);
+                helpers.executePasteCallback(syncKeyInfo, event, clipboard);
+                if (waitList.length > 0) {
+                    when(assert, then, 0, pollingSettings.maxAttempts, pollingSettings.attemptInterval);
+                } else {
+                    then();
+                }
+            };
+        };
+        when = function(assert, then, waitCount, maxAttempts, attemptInterval) {
+            if (typeof assert !== "function" || typeof then !== "function") {
+                return false;
+            }
+            if (waitCount < maxAttempts) {
+                setTimeout(function() {
+                    if (assert()) {
+                        waitCount = 0;
+                        return then();
+                    } else {
+                        waitCount += 1;
+                        return when(assert, then, waitCount, maxAttempts, attemptInterval);
+                    }
+                }, attemptInterval);
+            } else {
+                waitCount = 0;
+                return false;
+            }
+        };
+        return PasteObserver;
     }
 });
 
@@ -694,6 +728,10 @@ Hilary.scope("keypsee").register({
     exports.Keypsee = function(options) {
         options = options || {};
         var maps = scope.resolve("maps"), helpers = scope.resolve("helpers").init(maps);
-        return scope.resolve("observer").init(helpers, options.DOMElement || document);
+        return scope.resolve("observer").init({
+            helpers: helpers,
+            DOMElement: options.DOMElement || document,
+            pollingSettings: options.pollingSettings
+        });
     };
 })(window, Hilary.scope("keypsee"));
