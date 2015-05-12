@@ -6,6 +6,7 @@ You can create multiple instances of keypsee. By default, it binds to ``document
 var keypsee = new Keypsee();
 ```
 
+
 To bind to a specific element, construct a new Keypsee instance with the ``DOMElement argument``:
 ```JavaScript
 var keypsee = new Keypsee({ DOMElement: document.querySelector('.my-element') });
@@ -13,6 +14,7 @@ var keypsee = new Keypsee({ DOMElement: document.querySelector('.my-element') })
 // or with jQuery
 var keypsee = new Keypsee({ DOMElement: $('.my-element')[0] });
 ```
+
 
 Observe key events:
 ```JavaScript
@@ -22,6 +24,7 @@ keypsee.observe('command+b', 'keypress', function (event, keyInfo) {
 });
 ```
 
+
 Observe multiple key combinations for a single handler:
 ```JavaScript
 keypsee.observe(['ctrl+b', 'command+b'], 'keypress', function (event, keyInfo) {
@@ -29,6 +32,7 @@ keypsee.observe(['ctrl+b', 'command+b'], 'keypress', function (event, keyInfo) {
     console.log('keyInfo', keyInfo);
 });
 ```
+
 
 Observe complex key combinations. In the following example, the callback will fire
 if the user presses ``command+shift+b``, but it will not fire if the user presses
@@ -40,6 +44,7 @@ keypsee.observe('command+shift+b', 'keydown', function (event, keyInfo) {
 });
 ```
 
+
 If you're not sure whether you should bind to ``keyup`` or ``keydown``, let Keypsee
 choose the best key event by using ``keypress``, but note that it's not fullproof. For
 instance, to observe 'ctrl+plus', you must use the ``keydown`` event.
@@ -49,6 +54,7 @@ keypsee.observe(['ctrl+b', 'command+b'], 'keypress', function (event, keyInfo) {
     console.log('keyInfo', keyInfo);
 });
 ```
+
 
 Handlers are appended to observations, they don't overwrite them. In the following example,
 the callbacks of both observations will be executed when the user presses the key combinations:
@@ -63,6 +69,7 @@ keypsee.observe('command+shift+b', 'keypress', function (event, keyInfo) {
 });
 ```
 
+
 In order to observe the plus symbol, you must use the word "plus" because "+" is the
 key delimiter. Note that the keydown event must be used to observe a plus.
 ```JavaScript
@@ -71,6 +78,7 @@ keypsee.observe('ctrl+plus', 'keydown', function (event, keyInfo) {
     console.log('keyInfo', keyInfo);
 });
 ```
+
 
 You can observe an event one-time-only using ``observeOnce``. After the event is triggered
 a single time, it will no longer be observed by keypsee.
@@ -86,17 +94,20 @@ keypsee.observeOnce(['command+b', 'ctrl+b'], 'keypress', function (event, keyInf
 });
 ```
 
+
 To stop observing an event:
 ```JavaScript
 keypsee.stopObserving('command+shift+b', 'keypress');
 keypsee.stopObserving(['command+b', 'ctrl+b'], 'keypress');
 ```
 
+
 To stop observing all events:
 To stop observing an event:
 ```JavaScript
 keypsee.dispose();
 ```
+
 
 Observing a paste event is a special case: ``observePaste``. The handler accepts three arguments:
 ``event, keyInfo, clipboard``. The ``clipboard`` object has two properties: ``items``,
@@ -151,6 +162,7 @@ keypsee.observePaste({
     }
 });
 ```
+
 
 If you require more control over default behavior, propagation or if you need to take
 synchronous action on a paste event, you can override the synchronous callback. The following
@@ -212,3 +224,4 @@ keypsee.observePaste({
     }
 });
 ```
+
