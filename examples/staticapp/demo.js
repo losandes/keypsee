@@ -47,11 +47,9 @@
                 // otherwise, let the default behavior happen
             },
             asyncCallback: function (event, keyInfo, clipboard) {
-                var html = '';
-
                 enumerateClipboard(clipboard, function (item) {
                     if (item.type.indexOf('image') > -1 && item.dataUrl) {
-                        html = $('<img>')
+                        var html = $('<img>')
                             .attr('src', item.dataUrl)
                             .attr('alt', 'user entered image');
                         
@@ -65,18 +63,15 @@
     observeImageStringAndHtmlPaste = function () {
         observer.observePaste({
             asyncCallback: function (event, keyInfo, clipboard) {
-                var html = '';
-
                 enumerateClipboard(clipboard, function (item) {
                     if (item.type.indexOf('image') > -1 && item.dataUrl) {
-                        html = $('<img>')
+                        var html = $('<img>')
                             .attr('src', item.dataUrl)
                             .attr('alt', 'user entered image');
                         
                         appendTarget(event, keyInfo, clipboard, html);
                     } else if (item.data) {
-                        html = item.data;
-                        appendTarget(event, keyInfo, clipboard, html);
+                        appendTarget(event, keyInfo, clipboard, item.data);
                     }
                 });
             }
