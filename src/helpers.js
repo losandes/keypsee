@@ -256,10 +256,12 @@ Hilary.scope('keypsee').register({
                 var keys = combination.split('+'),
                     i;
                 
-                // convert "plus" to "+"
-                for (i = 0; i < keys.length; i += 1) {
-                    if (keys[i] === 'plus') {
-                        keys[i] = '+';
+                if (combination.indexOf('plus') > -1) {
+                    // convert "plus" to "+"
+                    for (i = 0; i < keys.length; i += 1) {
+                        if (keys[i] === 'plus') {
+                            keys[i] = '+';
+                        }
                     }
                 }
                 

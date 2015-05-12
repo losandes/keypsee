@@ -150,9 +150,11 @@ Hilary.scope("keypsee").register({
                     return [ "+" ];
                 }
                 var keys = combination.split("+"), i;
-                for (i = 0; i < keys.length; i += 1) {
-                    if (keys[i] === "plus") {
-                        keys[i] = "+";
+                if (combination.indexOf("plus") > -1) {
+                    for (i = 0; i < keys.length; i += 1) {
+                        if (keys[i] === "plus") {
+                            keys[i] = "+";
+                        }
                     }
                 }
                 return keys;
