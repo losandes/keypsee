@@ -73,9 +73,8 @@ Hilary.scope("keypsee").register({
                 }
             };
             executeOnePasteCallback = function(eventKeyInfo, event, callback, items) {
-                if (utils.isFunction(callback.func) && callback.func(event, eventKeyInfo, items) === false) {
-                    utils.preventDefault(event);
-                    utils.stopPropagation(event);
+                if (utils.isFunction(callback.func)) {
+                    callback.func(event, eventKeyInfo, items);
                 }
             };
             executeCallback = function(keyInfo, event) {
@@ -342,7 +341,7 @@ Hilary.scope("keypsee").register({
     dependencies: [ "utils", "Callback", "PasteObject", "JSON" ],
     factory: function(utils, Callback, PasteObject, JSON) {
         "use strict";
-        var observe, observeOne, observePaste, enumerateKeys, isInitialized = false, keyEventHandler, when, helpers, Observer, ObservedDOMElement;
+        var observe, observeOne, observePaste, defaultSyncPasteCallback, enumerateKeys, isInitialized = false, keyEventHandler, when, helpers, Observer, ObservedDOMElement;
         Observer = function() {
             var self = this, observeKeyEvents, observeDomEvent;
             self.init = function(helprs, DOMElement) {
@@ -377,10 +376,11 @@ Hilary.scope("keypsee").register({
                 return self.observe(keys, eventType, wrappedCallback);
             };
             self.observePaste = function(options) {
-                if (!utils.isObject(options) || !utils.isFunction(options.callback)) {
+                if (!utils.isObject(options) || !utils.isFunction(options.asyncCallback)) {
                     throw new Error("An object literal with at least a callback property is required to call observePaste");
                 }
-                observePaste(options.callback, options.preventDefault, options.stopPropagation);
+                options.syncCallback = options.syncCallback || defaultSyncPasteCallback;
+                observePaste(options.asyncCallback, options.syncCallback);
             };
             self.stopObserving = function(keys, eventType) {
                 var outcome = {};
@@ -391,6 +391,10 @@ Hilary.scope("keypsee").register({
                     };
                 });
                 return outcome;
+            };
+            self.eventHelpers = {
+                preventDefault: utils.preventDefault,
+                stopPropagation: utils.stopPropagation
             };
             self.dispose = function() {
                 helpers.dispose();
@@ -427,6 +431,10 @@ Hilary.scope("keypsee").register({
                 return self;
             };
         };
+        defaultSyncPasteCallback = function(event) {
+            utils.preventDefault(event);
+            utils.stopPropagation(event);
+        };
         enumerateKeys = function(keys, handler) {
             if (!utils.isFunction(handler)) {
                 throw new Error("The handler must be a function");
@@ -439,7 +447,7 @@ Hilary.scope("keypsee").register({
         observe = function(keys, eventType, callback) {
             enumerateKeys(keys, function(key) {
                 if (key === "paste") {
-                    observePaste(callback);
+                    observePaste(callback, defaultSyncPasteCallback);
                 } else {
                     observeOne(key, eventType, callback);
                 }
@@ -455,27 +463,28 @@ Hilary.scope("keypsee").register({
             });
             helpers.registerCallback(keyInfo, callbackObj);
         };
-        observePaste = function(callback, preventDefault, stopPropagation) {
-            var keyInfo = helpers.getKeyInfo("paste", "void"), DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document, callbackObj;
-            callbackObj = new Callback({
+        observePaste = function(asyncCallback, syncCallback) {
+            var asyncKeyInfo = helpers.getKeyInfo("paste", "async"), asyncCallbackObj, syncKeyInfo = helpers.getKeyInfo("paste", "sync"), syncCallbackObj, DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document;
+            asyncCallbackObj = new Callback({
                 key: "paste",
-                keyInfo: keyInfo,
-                callback: callback,
-                eventType: "void"
+                keyInfo: asyncKeyInfo,
+                callback: asyncCallback,
+                eventType: "async"
             });
-            helpers.registerCallback(keyInfo, callbackObj);
+            syncCallbackObj = new Callback({
+                key: "paste",
+                keyInfo: syncKeyInfo,
+                callback: syncCallback,
+                eventType: "sync"
+            });
+            helpers.registerCallback(asyncKeyInfo, asyncCallbackObj);
+            helpers.registerCallback(syncKeyInfo, syncCallbackObj);
             if (DOMEle.onpaste !== undefined) {
                 DOMEle.onpaste = function(event) {
                     var i, items, item, pasteObj, wait = [], assert, then, output = {
                         items: [],
                         json: ""
                     };
-                    if (preventDefault) {
-                        utils.preventDefault(event);
-                    }
-                    if (stopPropagation) {
-                        utils.stopPropagation(event);
-                    }
                     items = (event.clipboardData || event.originalEvent.clipboardData).items;
                     output.json = JSON.stringify(items);
                     for (i in items) {
@@ -522,10 +531,11 @@ Hilary.scope("keypsee").register({
                         return outcome;
                     };
                     then = function() {
-                        helpers.executePasteCallback(keyInfo, event, output);
+                        helpers.executePasteCallback(asyncKeyInfo, event, output);
                     };
+                    helpers.executePasteCallback(syncKeyInfo, event, output);
                     if (wait.length > 0) {
-                        when(assert, then, 0, 33, 10);
+                        when(assert, then, 0, 9e3, 10);
                     } else {
                         then();
                     }

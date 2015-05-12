@@ -101,42 +101,113 @@ keypsee.dispose();
 Observing a paste event is a special case: ``observePaste``. The handler accepts three arguments:
 ``event, keyInfo, clipboard``. The ``clipboard`` object has two properties: ``items``,
 which is a list of the pasted items, and ``json``, which is the serialized version of
-the clipboard. You can prevent the default paste behavior by setting ``preventDefault`` to ``true``.
-You can also stop the event from bubbling up/propagating by setting ``stopPropagation`` to ``true``.
-
-The following example overrides the paste behavior of a page and supports pasting
+the clipboard. By default, keypsee will prevent default behavior and propagation, when you
+observe paste events. The following example overrides the paste behavior of a page and supports pasting
 images, html and strings into a target.
 ```JavaScript
+var enumerateClipboard,
+    appendTarget;
+
+enumerateClipboard = function (clipboard, callback) {
+    var item,
+        i;
+
+    for (i = 0; i < clipboard.items.length; i += 1) {
+        item = clipboard.items[i];
+
+        callback(item);
+    }
+};
+
+appendTarget = function (event, keyInfo, clipboard, html) {
+    $(event.target).append(html);
+
+    console.log('you pasted and image', {
+        event: event,
+        keyInfo: keyInfo,
+        clipboard: clipboard
+    });
+};
+
 keypsee.observePaste({
-    preventDefault: true,
-    stopPropagation: true,
-    callback: function (event, keyInfo, clipboard) {
-        var assert,
-            then,
-            item,
-            html = '',
-            i;
+    asyncCallback: function (event, keyInfo, clipboard) {
+        var html = '';
 
-        for (i = 0; i < clipboard.items.length; i += 1) {
-            item = clipboard.items[i];
-
+        enumerateClipboard(clipboard, function (item) {
             if (item.type.indexOf('image') > -1 && item.dataUrl) {
                 html = $('<img>')
                     .attr('src', item.dataUrl)
                     .attr('alt', 'user entered image');
+
+                appendTarget(event, keyInfo, clipboard, html);
             } else if (item.type.indexOf('text/html') > -1 && item.data) {
                 html = $(item.data);
+                appendTarget(event, keyInfo, clipboard, html);
             } else if (item.kind === 'string' && item.data) {
                 html = item.data;
+                appendTarget(event, keyInfo, clipboard, html);
             }
+        });
+    }
+});
+```
 
-            $(event.target).append(html);
+If you require more control over default behavior, propagation or if you need to take
+synchronous action on a paste event, you can override the synchronous callback. The following
+example only intercepts image file paste events. Other paste events, such as strings and HTML
+are left alone.
+```JavaScript
+var enumerateClipboard,
+    appendTarget;
+
+enumerateClipboard = function (clipboard, callback) {
+    var item,
+        i;
+
+    for (i = 0; i < clipboard.items.length; i += 1) {
+        item = clipboard.items[i];
+
+        callback(item);
+    }
+};
+
+appendTarget = function (event, keyInfo, clipboard, html) {
+    $(event.target).append(html);
+
+    console.log('you pasted and image', {
+        event: event,
+        keyInfo: keyInfo,
+        clipboard: clipboard
+    });
+};
+
+keypsee.observePaste({
+    syncCallback: function (event, keyInfo, clipboard) {
+        var prevent = false;
+
+        enumerateClipboard(clipboard, function (item) {
+            if (item.type.indexOf('image') > -1) {
+                prevent = true;
+            }
+        });
+
+        if (prevent) {
+            observer.eventHelpers.preventDefault(event);
+            observer.eventHelpers.stopPropagation(event);
         }
+        // otherwise, let the default behavior happen
+    },
+    asyncCallback: function (event, keyInfo, clipboard) {
+        var html = '';
 
-        console.log('you pasted and image', {
-            event: event,
-            keyInfo: keyInfo,
-            clipboard: clipboard
+        enumerateClipboard(clipboard, function (item) {
+            if (item.type.indexOf('image') > -1 && item.dataUrl) {
+                html = $('<img>')
+                    .attr('src', item.dataUrl)
+                    .attr('alt', 'user entered image');
+
+                appendTarget(event, keyInfo, clipboard, html);
+            }
         });
     }
 });

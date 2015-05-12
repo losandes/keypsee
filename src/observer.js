@@ -11,6 +11,7 @@ Hilary.scope('keypsee').register({
         var observe,
             observeOne,
             observePaste,
+            defaultSyncPasteCallback,
             enumerateKeys,
             isInitialized = false,
             keyEventHandler,
@@ -100,16 +101,19 @@ Hilary.scope('keypsee').register({
             // makes the paste event observable
             //
             // @param {Object} options: the options for the paste event
-            // @param {Function} options.callback: the callback for the paste event
-            // @param {Boolean} options.preventDefault: will prevent the default paste behavior when true
-            // @param {Boolean} options.stopPropagation: will stop the event from bubbling up/propagating when true
+            // @param {Function} options.syncCallback: a synchronous callback that can be used to effect
+            //      behavior, such as preventDefault and stopPropagation
+            // @param {Function} options.asyncCallback: an asynchronous callback that is exectuted after
+            //      all clipboard data is parsed (i.e. file reads)
             */
             self.observePaste = function (options) {
-                if (!utils.isObject(options) || !utils.isFunction(options.callback)) {
+                if (!utils.isObject(options) || !utils.isFunction(options.asyncCallback)) {
                     throw new Error('An object literal with at least a callback property is required to call observePaste');
                 }
                 
-                observePaste(options.callback, options.preventDefault, options.stopPropagation);
+                options.syncCallback = options.syncCallback || defaultSyncPasteCallback;
+                
+                observePaste(options.asyncCallback, options.syncCallback);
             };
 
             /*
@@ -132,6 +136,11 @@ Hilary.scope('keypsee').register({
                 });
                 
                 return outcome;
+            };
+            
+            self.eventHelpers = {
+                preventDefault: utils.preventDefault,
+                stopPropagation: utils.stopPropagation
             };
             
             self.dispose = function () {
@@ -190,6 +199,11 @@ Hilary.scope('keypsee').register({
             };
         };
         
+        defaultSyncPasteCallback = function (event) {
+            utils.preventDefault(event);
+            utils.stopPropagation(event);
+        };
+        
         enumerateKeys = function (keys, handler) {
             if (!utils.isFunction(handler)) {
                 throw new Error('The handler must be a function');
@@ -206,7 +220,7 @@ Hilary.scope('keypsee').register({
         observe = function (keys, eventType, callback) {
             enumerateKeys(keys, function (key) {
                 if (key === 'paste') {
-                    observePaste(callback);
+                    observePaste(callback, defaultSyncPasteCallback);
                 } else {
                     observeOne(key, eventType, callback);
                 }
@@ -222,13 +236,17 @@ Hilary.scope('keypsee').register({
             helpers.registerCallback(keyInfo, callbackObj);
         };
 
-        observePaste = function (callback, preventDefault, stopPropagation) {
-            var keyInfo = helpers.getKeyInfo('paste', 'void'),
-                DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document,
-                callbackObj;
+        observePaste = function (asyncCallback, syncCallback) {
+            var asyncKeyInfo = helpers.getKeyInfo('paste', 'async'),
+                asyncCallbackObj,
+                syncKeyInfo = helpers.getKeyInfo('paste', 'sync'),
+                syncCallbackObj,
+                DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document;
 
-            callbackObj = new Callback({ key: 'paste', keyInfo: keyInfo, callback: callback, eventType: 'void' });
-            helpers.registerCallback(keyInfo, callbackObj);
+            asyncCallbackObj = new Callback({ key: 'paste', keyInfo: asyncKeyInfo, callback: asyncCallback, eventType: 'async' });
+            syncCallbackObj = new Callback({ key: 'paste', keyInfo: syncKeyInfo, callback: syncCallback, eventType: 'sync' });
+            helpers.registerCallback(asyncKeyInfo, asyncCallbackObj);
+            helpers.registerCallback(syncKeyInfo, syncCallbackObj);
             
             if (DOMEle.onpaste !== undefined) {
                 DOMEle.onpaste = function (event) {
@@ -243,14 +261,6 @@ Hilary.scope('keypsee').register({
                             items: [],
                             json: ''
                         };
-                    
-                    if (preventDefault) {
-                        utils.preventDefault(event);
-                    }
-
-                    if (stopPropagation) {
-                        utils.stopPropagation(event);
-                    }
 
                     items = (event.clipboardData || event.originalEvent.clipboardData).items;
                     output.json = JSON.stringify(items); // will give you the mime types
@@ -306,11 +316,14 @@ Hilary.scope('keypsee').register({
                     };
                     
                     then = function () {
-                        helpers.executePasteCallback(keyInfo, event, output);
+                        helpers.executePasteCallback(asyncKeyInfo, event, output);
                     };
                     
+                    helpers.executePasteCallback(syncKeyInfo, event, output);
+                    
                     if (wait.length > 0) {
-                        when(assert, then, 0, 33, 10);
+                        // try every 10ms for up to 1.5 minutes
+                        when(assert, then, 0, 9000, 10);
                     } else {
                         then();
                     }

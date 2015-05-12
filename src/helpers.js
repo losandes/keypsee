@@ -127,11 +127,15 @@ Hilary.scope('keypsee').register({
             };
 
             executeOnePasteCallback = function (eventKeyInfo, event, callback, items) {
-                if (utils.isFunction(callback.func)
-                        && callback.func(event, eventKeyInfo, items) === false) {
-                    utils.preventDefault(event);
-                    utils.stopPropagation(event);
+                if (utils.isFunction(callback.func)) {
+                    callback.func(event, eventKeyInfo, items);
                 }
+                
+//                if (utils.isFunction(callback.func)
+//                        && callback.func(event, eventKeyInfo, items) === false) {
+//                    utils.preventDefault(event);
+//                    utils.stopPropagation(event);
+//                }
             };
 
             executeCallback = function (keyInfo, event) {
