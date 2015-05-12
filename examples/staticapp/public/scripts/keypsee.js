@@ -342,7 +342,7 @@ Hilary.scope("keypsee").register({
     dependencies: [ "utils", "Callback", "PasteObject", "JSON" ],
     factory: function(utils, Callback, PasteObject, JSON) {
         "use strict";
-        var observe, observeOne, observePaste, enumerateKeys, isInitialized = false, keyEventHandler, helpers, Observer, ObservedDOMElement;
+        var observe, observeOne, observePaste, enumerateKeys, isInitialized = false, keyEventHandler, when, helpers, Observer, ObservedDOMElement;
         Observer = function() {
             var self = this, observeKeyEvents, observeDomEvent;
             self.init = function(helprs, DOMElement) {
@@ -375,6 +375,12 @@ Hilary.scope("keypsee").register({
                     self.stopObserving(keys, eventType);
                 };
                 return self.observe(keys, eventType, wrappedCallback);
+            };
+            self.observePaste = function(options) {
+                if (!utils.isObject(options) || !utils.isFunction(options.callback)) {
+                    throw new Error("An object literal with at least a callback property is required to call observePaste");
+                }
+                observePaste(options.callback, options.preventDefault, options.stopPropagation);
             };
             self.stopObserving = function(keys, eventType) {
                 var outcome = {};
@@ -449,7 +455,7 @@ Hilary.scope("keypsee").register({
             });
             helpers.registerCallback(keyInfo, callbackObj);
         };
-        observePaste = function(callback) {
+        observePaste = function(callback, preventDefault, stopPropagation) {
             var keyInfo = helpers.getKeyInfo("paste", "void"), DOMEle = ObservedDOMElement.onpaste !== undefined ? ObservedDOMElement : document, callbackObj;
             callbackObj = new Callback({
                 key: "paste",
@@ -460,28 +466,89 @@ Hilary.scope("keypsee").register({
             helpers.registerCallback(keyInfo, callbackObj);
             if (DOMEle.onpaste !== undefined) {
                 DOMEle.onpaste = function(event) {
-                    var i, items, output = {
+                    var i, items, item, pasteObj, wait = [], assert, then, output = {
                         items: [],
                         json: ""
-                    }, item, pasteObj;
+                    };
+                    if (preventDefault) {
+                        utils.preventDefault(event);
+                    }
+                    if (stopPropagation) {
+                        utils.stopPropagation(event);
+                    }
                     items = (event.clipboardData || event.originalEvent.clipboardData).items;
                     output.json = JSON.stringify(items);
                     for (i in items) {
-                        if (items.hasOwnProperty(i)) {
+                        if (items.hasOwnProperty(i) && items[i].kind && items[i].type) {
                             item = items[i];
                             pasteObj = new PasteObject({
                                 kind: item.kind,
                                 type: item.type
                             });
                             if (item.kind === "file" && item.getAsFile) {
+                                wait.push({
+                                    item: pasteObj,
+                                    property: "dataUrl"
+                                });
                                 pasteObj.file = item.getAsFile();
                                 pasteObj.toDataUrl();
+                            } else if (item.getData) {
+                                wait.push({
+                                    item: pasteObj,
+                                    property: "data"
+                                });
+                                pasteObj.data = item.getData(pasteObj.type);
+                            } else if (item.getAsString) {
+                                wait.push({
+                                    item: pasteObj,
+                                    property: "data"
+                                });
+                                item.getAsString(function(data) {
+                                    pasteObj.data = data;
+                                });
                             }
                             output.items.push(pasteObj);
                         }
                     }
-                    helpers.executePasteCallback(keyInfo, event, output);
+                    assert = function() {
+                        var outcome = true, i;
+                        for (i = 0; i < wait.length; i += 1) {
+                            if (typeof wait[i].item[wait[i].property] !== undefined) {
+                                outcome = outcome && true;
+                            } else {
+                                outcome = false;
+                            }
+                        }
+                        return outcome;
+                    };
+                    then = function() {
+                        helpers.executePasteCallback(keyInfo, event, output);
+                    };
+                    if (wait.length > 0) {
+                        when(assert, then, 0, 33, 10);
+                    } else {
+                        then();
+                    }
                 };
+            }
+        };
+        when = function(assert, then, waitCount, waitThreshold, sleepTime) {
+            if (typeof assert !== "function" || typeof then !== "function") {
+                return false;
+            }
+            if (waitCount < waitThreshold) {
+                setTimeout(function() {
+                    if (assert()) {
+                        waitCount = 0;
+                        return then();
+                    } else {
+                        waitCount += 1;
+                        return when(assert, then, waitCount, waitThreshold, sleepTime);
+                    }
+                }, sleepTime);
+            } else {
+                waitCount = 0;
+                return false;
             }
         };
         keyEventHandler = function(event) {
@@ -507,6 +574,7 @@ Hilary.scope("keypsee").register({
             self.kind = pasteobj.kind;
             self.type = pasteobj.type;
             self.file = pasteobj.file;
+            self.data = pasteobj.data;
             self.dataUrl = pasteobj.dataUrl;
             self.toDataUrl = function() {
                 if (!FileReader) {

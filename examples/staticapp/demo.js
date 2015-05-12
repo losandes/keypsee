@@ -3,56 +3,41 @@
     "use strict";
     
     var when,
-        waitThreshold = 33,
-        waitCount = 0,
         observer = new Keypsee();
     
-    when = function (assert, then) {
-        if (typeof assert !== 'function' || typeof then !== 'function') {
-            return false;
-        }
-        
-        if (waitCount < waitThreshold) {
-            // at this point, the file is still being read to the dataUrl
-            setTimeout(function () {
-                if (assert()) {
-                    waitCount = 0;
-                    return then();
-                } else {
-                    return when(assert, then);
+    
+    observer.observePaste({
+        preventDefault: true,
+        stopPropagation: true,
+        callback: function (event, keyInfo, clipboard) {
+            var assert,
+                then,
+                item,
+                html = '',
+                i;
+
+            for (i = 0; i < clipboard.items.length; i += 1) {
+                item = clipboard.items[i];
+
+                if (item.type.indexOf('image') > -1 && item.dataUrl) {
+                    html = $('<img>')
+                        .attr('src', item.dataUrl)
+                        .attr('alt', 'user entered image');
+                } else if (item.type.indexOf('text/html') > -1 && item.data) {
+                    html = $(item.data);
+                } else if (item.kind === 'string' && item.data) {
+                    html = item.data;
                 }
-            }, 30);
-        } else {
-            waitCount = 0;
-            return false;
-        }
-    };
-    
-    
-    observer.observe('paste', 'keypress', function (event, keyInfo, clipboard) {
-        var assert,
-            then,
-            item = clipboard.items[0];
-        
-        assert = function () {
-            return item.type.indexOf('image') > -1 && item.dataUrl;
-        };
-        
-        then = function () {
-            var img = $('<img>')
-                .attr('src', item.dataUrl)
-                .attr('alt', 'user entered image');
-            
+
+                $(event.target).append(html);
+            }
+
             console.log('you pasted and image', {
                 event: event,
                 keyInfo: keyInfo,
                 clipboard: clipboard
             });
-            
-            return $(event.target).append(img);
-        };
-        
-        when(assert, then);
+        }
     });
     
     observer.observe(['command+b'], 'keypress', function (event, keyInfo) {

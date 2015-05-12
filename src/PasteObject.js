@@ -18,6 +18,7 @@ Hilary.scope('keypsee').register({
             self.kind = pasteobj.kind;
             self.type = pasteobj.type;
             self.file = pasteobj.file;
+            self.data = pasteobj.data;
             self.dataUrl = pasteobj.dataUrl;
             
             self.toDataUrl = function () {
