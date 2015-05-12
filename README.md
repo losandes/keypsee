@@ -192,8 +192,8 @@ keypsee.observePaste({
         });
 
         if (prevent) {
-            observer.eventHelpers.preventDefault(event);
-            observer.eventHelpers.stopPropagation(event);
+            keypsee.eventHelpers.preventDefault(event);
+            keypsee.eventHelpers.stopPropagation(event);
         }
         // otherwise, let the default behavior happen
     },
