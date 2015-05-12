@@ -20,7 +20,6 @@ observer.observe('command+b', 'keypress', function (event, keyInfo) {
     console.log('event', event);
     console.log('keyInfo', keyInfo);
 });
-
 ```
 
 Observe multiple key combinations for a single handler:
@@ -62,13 +61,21 @@ observer.observe('command+shift+b', 'keypress', true, function (event, keyInfo) 
 observer.observe('command+shift+b', 'keypress', true, function (event, keyInfo) {
     console.log('Hello World!');
 });
-
 ```
 
 In order to observe the plus symbol, you must use the word "plus" because "+" is the
 key delimiter. Note that the keydown event must be used to observe a plus.
 ```JavaScript
 observer.observe('ctrl+plus', 'keydown', true, function (event, keyInfo) {
+    console.log('event', event);
+    console.log('keyInfo', keyInfo);
+});
+```
+
+You can observe an event one-time-only using ``observeOnce``. After the event is triggered
+a single time, it will no longer be observed by keypsee.
+```JavaScript
+observer.observeOnce('command+shift+b', 'keypress', true, function (event, keyInfo) {
     console.log('event', event);
     console.log('keyInfo', keyInfo);
 });
